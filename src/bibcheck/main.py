@@ -33,6 +33,11 @@ def run(argv=None):
         metavar="PATH",
         help="JSON file with additional exclusions (can be passed multiple times).",
     )
+    parser.add_argument(
+        "--output-dir",
+        metavar="PATH",
+        help="Directory for -json output, written as <doc-id>.json (defaults to <input>/bibcheck). "
+    )
 
     args = parser.parse_args(argv)
 
@@ -46,7 +51,8 @@ def run(argv=None):
     elif pdf_path.is_dir():
         pdf_files = list(pdf_path.glob("*.pdf"))
         folder = pdf_path
-        args.write_out = True
+        if not args.json:
+            args.write_out = True  # legacy batch default; skipped for -json (input may be read-only)
     else:
         print("Invalid path: ", path)
         return
@@ -55,12 +61,17 @@ def run(argv=None):
         print("No PDF files in path: ", path)
         return
 
-    if args.write_out or args.json:
-        bibcheck_dir = folder / "bibcheck"
-        bibcheck_dir.mkdir(exist_ok=True)
+    # Per-PDF JSON goes to --output-dir if given, else next to the PDFs.
+    json_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else folder / "bibcheck"
+
+    if args.write_out:
+        (folder / "bibcheck").mkdir(exist_ok=True)
+    if args.json:
+        json_dir.mkdir(parents=True, exist_ok=True)
 
     stats_file = folder/"bibcheck"/"stats.csv"
     if args.stats:
+        stats_file.parent.mkdir(parents=True, exist_ok=True)
         write_header = not stats_file.exists()
         with stats_file.open("a", newline="") as f:
             writer = csv.writer(f)
@@ -71,7 +82,7 @@ def run(argv=None):
     for file in pdf_files:
         pdf_stem = file.stem
         doc_path = folder / "bibcheck" / f"{pdf_stem}.docx"
-        json_path = folder / "bibcheck" / f"{pdf_stem}.json"
+        json_path = json_dir / f"{pdf_stem}.json"
         already = json_path.exists() if args.json else doc_path.exists()
         if already:
             print(f"Skipping {file}, already processed");

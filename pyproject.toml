@@ -10,7 +10,7 @@ authors = [
     { name = "Amanda Bienz", email = "bienz@unm.edu" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.13"
 
 dependencies = [
     "PyPDF2",

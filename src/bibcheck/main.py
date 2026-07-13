@@ -5,6 +5,7 @@ from .bibliography import Bibliography
 from .utils import exclusions, load_source_patterns
 from pathlib import Path
 import csv
+import json
 
 
 def run(argv=None):
@@ -15,6 +16,7 @@ def run(argv=None):
     parser.add_argument("pdf_path", help="Path to the PDF file or folder containing files")
     parser.add_argument("-write_out", action="store_true", help="Save output to a .doc file")
     parser.add_argument("-stats", action="store_true", help="Output csv file listing stats per file")
+    parser.add_argument("-json", action="store_true", help="Save raw per-reference output to a .json file per PDF")
 
     style_group = parser.add_mutually_exclusive_group()
     style_group.add_argument("-ieee", action="store_true", help="Parse IEEE style references")
@@ -53,7 +55,7 @@ def run(argv=None):
         print("No PDF files in path: ", path)
         return
 
-    if args.write_out:
+    if args.write_out or args.json:
         bibcheck_dir = folder / "bibcheck"
         bibcheck_dir.mkdir(exist_ok=True)
 
@@ -69,7 +71,9 @@ def run(argv=None):
     for file in pdf_files:
         pdf_stem = file.stem
         doc_path = folder / "bibcheck" / f"{pdf_stem}.docx"
-        if doc_path.exists():
+        json_path = folder / "bibcheck" / f"{pdf_stem}.json"
+        already = json_path.exists() if args.json else doc_path.exists()
+        if already:
             print(f"Skipping {file}, already processed");
             continue
 
@@ -82,6 +86,14 @@ def run(argv=None):
                 with stats_file.open("a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([file.name] + stats)
+            if args.json:
+                output = {
+                    "doc_id": pdf_stem,
+                    "tool": "bibcheck",
+                    "references": bib.records,
+                }
+                print("Saving to ", json_path)
+                json_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
     run()

@@ -21,6 +21,16 @@ class Citation:
         self.format = 'ieee'
         self.last_first = False
 
+        # Serialized by to_record(); set here too so excluded citations
+        # (which return early below) still have every field.
+        self.title = None
+        self.authors = None
+        self.year = None
+        self.doi = None
+        self.doi2 = None
+        self.arxiv_id = None
+        self.validation = None
+
         if args.acm:
             self.format = 'acm'
         elif args.siam: 
@@ -215,6 +225,7 @@ class Citation:
             self.best_match = self.title
             self.authors = m.group("authors").strip(" ,")
             self.authors = remove_special_chars(self.authors)
+            self.year = m.groupdict().get("year")  # ieee pattern has no year group
             if args.aaai:
                 # "Last, F.; and Last2, F." -> "Last, F., Last2, F." for the
                 # comma-based last_first author splitting
@@ -295,6 +306,7 @@ class Citation:
 
         validation = Validate(self)
         list0, list1, list2 = validation.compare_authors(self, self.last_first)
+        self.validation = validation  # kept for to_record()
 
         if validation.score_title == 1.0 and validation.score_authors == 1.0:
             write_output(f"{self.number} found exact title/author match", doc, GREEN)
@@ -351,4 +363,50 @@ class Citation:
         write_output(" ", doc)
 
         return issues
+
+    def to_record(self):
+        """Return this citation's raw output as a JSON-serializable dict.
+
+        Lossless w.r.t. what bibcheck computes: the reference as parsed
+        (extracted) plus the metadata lookup it was checked against
+        (lookup). Consumed by the -json output; downstream normalization
+        into the unified schema happens outside this repo.
+        """
+        record = {
+            "ref_id": str(self.number),
+            "raw_text": self.entry,
+            "excluded": self.excluded,
+            "parsed": bool(self.correct_format),
+            "extracted": {
+                "title": self.title,
+                "authors": self.authors,
+                "year": self.year,
+                "doi": self.doi,
+                "arxiv_id": self.arxiv_id,
+            },
+        }
+
+        v = self.validation
+        if v is None:
+            # Excluded citations skip the lookup entirely.
+            record["verdict"] = "excluded" if self.excluded else "unparsed"
+            record["lookup"] = None
+            return record
+
+        record["lookup"] = {
+            "found_title": v.title or None,
+            "found_authors": v.authors or None,
+            "score_title": v.score_title,
+            "score_authors": v.score_authors,
+            "doi_error": bool(v.wrong_doi),
+        }
+
+        if not self.correct_format:
+            record["verdict"] = "unparsed"
+        elif v.score_title == 1.0 and v.score_authors == 1.0:
+            record["verdict"] = "match"
+        else:
+            record["verdict"] = "mismatch"
+
+        return record
 

@@ -161,4 +161,7 @@ class Bibliography:
             print("Saving to ", self.doc_path)
             doc.save(self.doc_path)
 
+        if args.json:
+            self.records = [entry.to_record() for entry in self.entries]
+
         return [matches, num_excluded, wrong_format, incorrect_title_n, incorrect_author_n, correct_doi_n, incorrect_doi_n]

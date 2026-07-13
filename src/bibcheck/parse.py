@@ -201,6 +201,64 @@ class patterns:
             [\.,]
             .*$
         '''
+    # AAAI style: "Last, F.; Last2, F.; and Last3, F. 2020. Title. Venue."
+    aaai_pattern_3 = r'''
+        ^(?P<authors>
+            .+?
+            ;\s*and\s+                     # authors are ;-separated, "; and" before last
+            .+?
+        )
+        \.\s*                              # period after authors
+        (?P<year>(19|20)\d{2}[a-z]?)       # year, may carry a disambiguator (2020a)
+        \.\s*                              # period after year
+        (?P<title>(?:[^.]|\.(?!\s))+)
+        \.
+        .*$
+        '''
+    aaai_pattern_2 = aaai_pattern_3
+    aaai_pattern_et_al = r'''
+        ^(?P<authors>
+            .+?\bet\s+al\s*\.?             # literal "et al."
+        )
+        \s*
+        (?P<year>(19|20)\d{2}[a-z]?)
+        \.\s*
+        (?P<title>(?:[^.]|\.(?!\s))+)
+        \.
+        .*$
+        '''
+    aaai_pattern_1 = r'''
+        ^(?P<authors>
+            .+?
+        )
+        \.\s*
+        (?P<year>(19|20)\d{2}[a-z]?)
+        \.\s*
+        (?P<title>(?:[^.]|\.(?!\s))+)
+        \.
+        .*$
+        '''
+
+    # Start of one AAAI entry ("Last, F.; ...; and Last, F. 2020."), used to
+    # split the unnumbered reference list. Surnames may be accented (\p{L}),
+    # multi-word, or lowercase particles ("van den Oord"); a corporate author
+    # ("OpenAI. 2023.") has no initials at all. regex module syntax.
+    _aaai_word = r"[\p{L}][\p{L}’']*(?:-\s*[\p{L}’']+)*"      # may break at a hyphen across lines
+    _aaai_initials = r"\p{Lu}\.(?:[-\s]?\p{Lu}\.)*"
+    _aaai_name = rf"{_aaai_word}(?:\s+{_aaai_word}){{0,3}},\s*{_aaai_initials}"
+    _aaai_org = r"\p{Lu}[\p{L}\d&@-]*(?:\s+\p{Lu}[\p{L}\d&@-]*){0,3}"
+    aaai_entry_pattern = rf'''
+        (?P<authors>
+            (?:{_aaai_name}\s*;\s*)*
+            (?:and\s+)?{_aaai_name}
+          |
+            (?:{_aaai_name}\s*;\s*)+et\s+al\.
+          |
+            {_aaai_org}\.
+        )
+        \s*(?P<year>(19|20)\d{{2}}[a-z]?)\.
+        '''
+
     gen_pattern_1 = r'''
             ^
             (?P<authors>

@@ -28,6 +28,9 @@ class Citation:
         elif args.springer:
             self.format = 'springer'
             self.last_first = True
+        elif args.aaai:
+            self.format = 'aaai'
+            self.last_first = True
 
         entry = remove_special_chars(entry)
         if args.siam:
@@ -132,8 +135,13 @@ class Citation:
             pattern_2 = patterns.springer_pattern_2
             pattern_1 = patterns.springer_pattern_1
             pattern_et_al = patterns.springer_pattern_et_al
+        elif args.aaai:
+            pattern_3 = patterns.aaai_pattern_3
+            pattern_2 = patterns.aaai_pattern_2
+            pattern_1 = patterns.aaai_pattern_1
+            pattern_et_al = patterns.aaai_pattern_et_al
         else:
-            pattern_3 = patterns.ieee_pattern_3 
+            pattern_3 = patterns.ieee_pattern_3
             pattern_2 = patterns.ieee_pattern_2
             pattern_1 = patterns.ieee_pattern_1
             pattern_et_al = patterns.ieee_pattern_et_al
@@ -144,14 +152,14 @@ class Citation:
             except TimeoutError:
                 m = None
 
-        if not m and (args.springer or ", and " in entry): # 3+ authors
+        if not m and (args.springer or args.aaai or ", and " in entry): # 3+ authors
             try:
                 m = regex.search(pattern_3, entry, flags = re.DOTALL | re.VERBOSE, timeout = 0.1)
 
             except TimeoutError:
                 m = None
-        
-        if not m and (args.springer or " and " in entry): # 2 authors
+
+        if not m and (args.springer or args.aaai or " and " in entry): # 2 authors
             try:
                 m = regex.search(pattern_2, entry, flags = re.DOTALL | re.VERBOSE, timeout = 0.1)
 
@@ -207,6 +215,11 @@ class Citation:
             self.best_match = self.title
             self.authors = m.group("authors").strip(" ,")
             self.authors = remove_special_chars(self.authors)
+            if args.aaai:
+                # "Last, F.; and Last2, F." -> "Last, F., Last2, F." for the
+                # comma-based last_first author splitting
+                self.authors = re.sub(r';\s*and\s+', ', ', self.authors)
+                self.authors = re.sub(r';\s*', ', ', self.authors)
 
             if self.authors == '--':
                 self.authors = prev_citation.authors

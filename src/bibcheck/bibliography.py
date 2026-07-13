@@ -2,8 +2,11 @@ from PyPDF2 import PdfReader
 from pathlib import Path
 from docx import Document
 import re
+import regex
 
-from .citation import Citation 
+from .citation import Citation
+from .parse import patterns
+from .utils import remove_special_chars
 
 class Bibliography:
     def __init__(self):
@@ -26,6 +29,10 @@ class Bibliography:
             text += page.get_text()
         text = re.sub(r'^\s*\d+\s*$\n?', '', text, flags=re.MULTILINE)
         text = re.sub(r'\s+\.', '.', text)
+        if args.aaai:
+            # Clean early so spacing diacritics ("G¨onen") don't break the
+            # author-name matching below
+            text = remove_special_chars(text)
 
         # Find the last instance of 'bibliography' or 'references'
         pattern = re.compile(
@@ -38,6 +45,15 @@ class Bibliography:
                 r"(R\s*e\s*f\s*e\s*r\s*e\s*n\s*c\s*e\s*s|B\s*i\s*b\s*l\s*i\s*g\s*r\s*a\s*p\s*h\s*y)"
                 r"(?:(?!\1).)*?(?=(\[\s*1\s*\]|^\s*1\.))",
                 re.IGNORECASE | re.DOTALL | re.MULTILINE,
+            )
+        elif args.aaai:
+            # AAAI entries aren't numbered, so anchor the heading to the
+            # first author-year entry after it. \b keeps "preferences" from
+            # matching as "references".
+            pattern = regex.compile(
+                r"\b(R\s*e\s*f\s*e\s*r\s*e\s*n\s*c\s*e\s*s|B\s*i\s*b\s*l\s*i\s*o\s*g\s*r\s*a\s*p\s*h\s*y)"
+                rf"(?=\s*(?:{patterns._aaai_name}|{patterns._aaai_org}\.\s*(19|20)\d\d|(19|20)\d\d[a-z]?\.))",
+                regex.IGNORECASE,
             )
         matches = list(pattern.finditer(text))
         if not matches:
@@ -89,9 +105,18 @@ class Bibliography:
                 ctr += 1
                 pos = end
             
+        elif args.aaai:
+            # AAAI entries are unnumbered; each begins with its author-year prefix
+            entry_matches = list(regex.finditer(patterns.aaai_entry_pattern, bib_text, flags=regex.VERBOSE))
+            matches = []
+            for i, em in enumerate(entry_matches):
+                start = em.start()
+                end = entry_matches[i + 1].start() if i + 1 < len(entry_matches) else len(bib_text)
+                matches.append((i + 1, bib_text[start:end]))
         else:
             pattern = r"\[(\d+)\]\s*(.+?)(?=\[\d+\]|\Z)"
             matches = re.findall(pattern, bib_text, re.DOTALL)
+
         for number, entry_text in matches:
             clean = " ".join(entry_text.split()).strip()
             if clean:
